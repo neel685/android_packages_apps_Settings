@@ -28,7 +28,6 @@ import android.os.Bundle;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Toolbar;
@@ -38,6 +37,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.internal.util.UserIcons;
 
@@ -55,9 +55,6 @@ public class SettingsHomepageActivity extends FragmentActivity {
     ImageView avatarView;
     UserManager mUserManager;
 
-    View homepageSpacer;
-    View homepageMainLayout;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,6 +63,9 @@ public class SettingsHomepageActivity extends FragmentActivity {
         final View root = findViewById(R.id.settings_homepage_container);
         root.setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+
+        final RecyclerView recyclerView = findViewById(R.id.recycler_view);
+        recyclerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
         setHomepageContainerPaddingTop();
         Context context = getApplicationContext();
@@ -96,14 +96,6 @@ public class SettingsHomepageActivity extends FragmentActivity {
         showFragment(new TopLevelSettings(), R.id.main_content);
         ((FrameLayout) findViewById(R.id.main_content))
                 .getLayoutTransition().enableTransitionType(LayoutTransition.CHANGING);
-
-        homepageSpacer = findViewById(R.id.settings_homepage_spacer);
-        homepageMainLayout = findViewById(R.id.main_content_scrollable_container);
-
-        if (!isHomepageSpacerEnabled() && homepageSpacer != null && homepageMainLayout != null) {
-            homepageSpacer.setVisibility(View.GONE);
-            setMargins(homepageMainLayout, 0,0,0,0);
-        }
     }
 
     private void showFragment(Fragment fragment, int id) {
@@ -138,18 +130,7 @@ public class SettingsHomepageActivity extends FragmentActivity {
     public void onResume() {
         super.onResume();
         avatarView.setImageDrawable(getCircularUserIcon(getApplicationContext()));
-    }
 
-    private boolean isHomepageSpacerEnabled() {
-        return true;
-    }
-
-    private static void setMargins (View v, int l, int t, int r, int b) {
-        if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
-            ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
-            p.setMargins(l, t, r, b);
-            v.requestLayout();
-        }
     }
 
     @VisibleForTesting
