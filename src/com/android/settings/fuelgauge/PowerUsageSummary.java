@@ -239,19 +239,15 @@ public class PowerUsageSummary extends PowerUsageBase implements OnLongClickList
         if (!getResources().getBoolean(R.bool.config_supportSmartCharging)) {
             getPreferenceScreen().removePreference(mSmartCharging);
         }
-    }
 
-    @Override
-    public boolean onPreferenceTreeClick(Preference preference) {
-        if (KEY_BATTERY_HEADER.equals(preference.getKey())) {
-            new SubSettingLauncher(getContext())
-                        .setDestination(PowerUsageAdvanced.class.getName())
-                        .setSourceMetricsCategory(getMetricsCategory())
-                        .setTitleRes(R.string.advanced_battery_title)
-                        .launch();
-            return true;
-        }
-        return super.onPreferenceTreeClick(preference);
+        final TextView showStatsBtn = mBatteryLayoutPref.findViewById(R.id.btn_show_stats);
+        showStatsBtn.setOnClickListener(v -> {
+           new SubSettingLauncher(getContext())
+                   .setDestination(PowerUsageAdvanced.class.getName())
+                   .setSourceMetricsCategory(getMetricsCategory())
+                   .setTitleRes(R.string.advanced_battery_title)
+                   .launch();
+        });
     }
 
     @Override

@@ -456,4 +456,8 @@
     <string name="torch_power_button_gesture_dt">Double tap power to toggle torch</string>
     <string name="torch_power_button_gesture_lp">Long press power to toggle torch</string>
 
+    <!-- Battery header -->
+    <string name="oneplus_battery_header_title">^1%</string>
+    <string name="oneplus_battery_menu_stats_total">View detailed usage</string>
+
 </resources>
