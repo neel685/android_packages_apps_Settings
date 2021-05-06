@@ -1,31 +1,8 @@
-/*
- * Copyright (C) 2015 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
-
-import static android.content.Intent.EXTRA_PACKAGE_NAME;
-import static android.content.Intent.EXTRA_TITLE;
-import static android.content.pm.PackageManager.EXTRA_MOVE_ID;
-import static android.os.storage.VolumeInfo.EXTRA_VOLUME_ID;
-
-import static com.android.settings.deviceinfo.StorageSettings.TAG;
 
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.os.Bundle;
 import android.os.UserManager;
@@ -33,92 +10,71 @@ import android.os.storage.StorageManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
-
 import com.android.internal.util.Preconditions;
-import com.android.settings.R;
+import com.android.settings.C0008R$drawable;
+import com.android.settings.C0012R$layout;
+import com.android.settings.C0017R$string;
 import com.android.settings.password.ChooseLockSettingsHelper;
 
 public class StorageWizardMoveConfirm extends StorageWizardBase {
-    private static final int REQUEST_CREDENTIAL = 100;
-
-    private String mPackageName;
     private ApplicationInfo mApp;
+    private String mPackageName;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (mVolume == null) {
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, com.android.settings.deviceinfo.StorageWizardBase, com.oneplus.settings.BaseAppCompatActivity
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        if (this.mVolume == null) {
             finish();
             return;
         }
-        setContentView(R.layout.storage_wizard_generic);
-
+        setContentView(C0012R$layout.storage_wizard_generic);
         try {
-            mPackageName = getIntent().getStringExtra(EXTRA_PACKAGE_NAME);
-            mApp = getPackageManager().getApplicationInfo(mPackageName, 0);
-        } catch (NameNotFoundException e) {
+            this.mPackageName = getIntent().getStringExtra("android.intent.extra.PACKAGE_NAME");
+            this.mApp = getPackageManager().getApplicationInfo(this.mPackageName, 0);
+            Preconditions.checkState(getPackageManager().getPackageCandidateVolumes(this.mApp).contains(this.mVolume));
+            String charSequence = getPackageManager().getApplicationLabel(this.mApp).toString();
+            String bestVolumeDescription = this.mStorage.getBestVolumeDescription(this.mVolume);
+            setIcon(C0008R$drawable.ic_swap_horiz);
+            setHeaderText(C0017R$string.storage_wizard_move_confirm_title, charSequence);
+            setBodyText(C0017R$string.storage_wizard_move_confirm_body, charSequence, bestVolumeDescription);
+            setNextButtonText(C0017R$string.move_app, new CharSequence[0]);
+            setBackButtonVisibility(4);
+        } catch (PackageManager.NameNotFoundException unused) {
             finish();
-            return;
         }
-
-        // Sanity check that target volume is candidate
-        Preconditions.checkState(
-                getPackageManager().getPackageCandidateVolumes(mApp).contains(mVolume));
-
-        final String appName = getPackageManager().getApplicationLabel(mApp).toString();
-        final String volumeName = mStorage.getBestVolumeDescription(mVolume);
-
-        setIcon(R.drawable.ic_swap_horiz);
-        setHeaderText(R.string.storage_wizard_move_confirm_title, appName);
-        setBodyText(R.string.storage_wizard_move_confirm_body, appName, volumeName);
-
-        setNextButtonText(R.string.move_app);
-        setBackButtonVisibility(View.INVISIBLE);
     }
 
-    @Override
+    @Override // com.android.settings.deviceinfo.StorageWizardBase
     public void onNavigateNext(View view) {
-        // Ensure that all users are unlocked so that we can move their data
         if (StorageManager.isFileEncryptedNativeOrEmulated()) {
-            for (UserInfo user : getSystemService(UserManager.class).getUsers()) {
-                if (!StorageManager.isUserKeyUnlocked(user.id)) {
-                    Log.d(TAG, "User " + user.id + " is currently locked; requesting unlock");
-                    final CharSequence description = TextUtils.expandTemplate(
-                            getText(R.string.storage_wizard_move_unlock), user.name);
-                    new ChooseLockSettingsHelper(this).launchConfirmationActivityForAnyUser(
-                            REQUEST_CREDENTIAL, null, null, description, user.id);
+            for (UserInfo userInfo : ((UserManager) getSystemService(UserManager.class)).getUsers()) {
+                if (!StorageManager.isUserKeyUnlocked(userInfo.id)) {
+                    Log.d("StorageSettings", "User " + userInfo.id + " is currently locked; requesting unlock");
+                    new ChooseLockSettingsHelper(this).launchConfirmationActivityForAnyUser(100, null, null, TextUtils.expandTemplate(getText(C0017R$string.storage_wizard_move_unlock), userInfo.name), userInfo.id);
                     return;
                 }
             }
         }
-
-        // Kick off move before we transition
-        final String appName = getPackageManager().getApplicationLabel(mApp).toString();
-        final int moveId = getPackageManager().movePackage(mPackageName, mVolume);
-
-        final Intent intent = new Intent(this, StorageWizardMoveProgress.class);
-        intent.putExtra(EXTRA_MOVE_ID, moveId);
-        intent.putExtra(EXTRA_TITLE, appName);
-        intent.putExtra(EXTRA_VOLUME_ID, mVolume.getId());
+        String charSequence = getPackageManager().getApplicationLabel(this.mApp).toString();
+        int movePackage = getPackageManager().movePackage(this.mPackageName, this.mVolume);
+        Intent intent = new Intent(this, StorageWizardMoveProgress.class);
+        intent.putExtra("android.content.pm.extra.MOVE_ID", movePackage);
+        intent.putExtra("android.intent.extra.TITLE", charSequence);
+        intent.putExtra("android.os.storage.extra.VOLUME_ID", this.mVolume.getId());
         startActivity(intent);
         finishAffinity();
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_CREDENTIAL) {
-            if (resultCode == RESULT_OK) {
-                // Credentials confirmed, so storage should be unlocked; let's
-                // go look for the next locked user.
-                onNavigateNext(null);
-            } else {
-                // User wasn't able to confirm credentials, so we're okay
-                // landing back at the wizard page again, where they read
-                // instructions again and tap "Next" to try again.
-                Log.w(TAG, "Failed to confirm credentials");
-            }
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.fragment.app.FragmentActivity
+    public void onActivityResult(int i, int i2, Intent intent) {
+        if (i != 100) {
+            super.onActivityResult(i, i2, intent);
+        } else if (i2 == -1) {
+            onNavigateNext(null);
         } else {
-            super.onActivityResult(requestCode, resultCode, data);
+            Log.w("StorageSettings", "Failed to confirm credentials");
         }
     }
 }

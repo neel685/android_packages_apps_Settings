@@ -1,59 +1,33 @@
-/*
- * Copyright (C) 2015 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
 
 import android.os.Bundle;
-import android.os.storage.VolumeInfo;
 import android.view.View;
-
-import com.android.settings.R;
+import com.android.settings.C0012R$layout;
+import com.android.settings.C0017R$string;
 
 public class StorageWizardReady extends StorageWizardBase {
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (mDisk == null) {
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, com.android.settings.deviceinfo.StorageWizardBase, com.oneplus.settings.BaseAppCompatActivity
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        if (this.mDisk == null) {
             finish();
             return;
         }
-        setContentView(R.layout.storage_wizard_generic);
-
-        setHeaderText(R.string.storage_wizard_ready_title, getDiskShortDescription());
-
-        final VolumeInfo privateVol = findFirstVolume(VolumeInfo.TYPE_PRIVATE);
-        if (privateVol != null) {
-            if (getIntent().getBooleanExtra(EXTRA_MIGRATE_SKIP, false)) {
-                setBodyText(R.string.storage_wizard_ready_v2_internal_body,
-                        getDiskDescription());
-            } else {
-                setBodyText(R.string.storage_wizard_ready_v2_internal_moved_body,
-                        getDiskDescription(), getDiskShortDescription());
-            }
+        setContentView(C0012R$layout.storage_wizard_generic);
+        setHeaderText(C0017R$string.storage_wizard_ready_title, getDiskShortDescription());
+        if (findFirstVolume(1) == null) {
+            setBodyText(C0017R$string.storage_wizard_ready_v2_external_body, getDiskDescription());
+        } else if (getIntent().getBooleanExtra("migrate_skip", false)) {
+            setBodyText(C0017R$string.storage_wizard_ready_v2_internal_body, getDiskDescription());
         } else {
-            setBodyText(R.string.storage_wizard_ready_v2_external_body,
-                    getDiskDescription());
+            setBodyText(C0017R$string.storage_wizard_ready_v2_internal_moved_body, getDiskDescription(), getDiskShortDescription());
         }
-
-        setNextButtonText(R.string.done);
-        setBackButtonVisibility(View.INVISIBLE);
+        setNextButtonText(C0017R$string.done, new CharSequence[0]);
+        setBackButtonVisibility(4);
     }
 
-    @Override
+    @Override // com.android.settings.deviceinfo.StorageWizardBase
     public void onNavigateNext(View view) {
         finishAffinity();
     }

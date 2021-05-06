@@ -1,22 +1,5 @@
-/*
- * Copyright (C) 2017 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
 
-import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.UserHandle;
@@ -24,115 +7,89 @@ import android.os.UserManager;
 import android.os.storage.StorageManager;
 import android.os.storage.VolumeInfo;
 import android.util.SparseArray;
-
-import androidx.annotation.VisibleForTesting;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
-
-import com.android.settings.R;
+import com.android.settings.C0019R$xml;
 import com.android.settings.Utils;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.deviceinfo.storage.StorageAsyncLoader;
-import com.android.settings.deviceinfo.storage.StorageAsyncLoader.AppsStorageResult;
 import com.android.settings.deviceinfo.storage.StorageItemPreferenceController;
 import com.android.settingslib.applications.StorageStatsSource;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.deviceinfo.StorageManagerVolumeProvider;
-
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * StorageProfileFragment is a fragment which shows the storage results for a profile of the
- * primary user.
- */
-public class StorageProfileFragment extends DashboardFragment
-        implements LoaderManager.LoaderCallbacks<SparseArray<AppsStorageResult>> {
-    private static final String TAG = "StorageProfileFragment";
-    public static final String USER_ID_EXTRA = "userId";
-    private static final int APPS_JOB_ID = 0;
-
-    private VolumeInfo mVolume;
-    private int mUserId;
+public class StorageProfileFragment extends DashboardFragment implements LoaderManager.LoaderCallbacks<SparseArray<StorageAsyncLoader.AppsStorageResult>> {
     private StorageItemPreferenceController mPreferenceController;
+    private int mUserId;
+    private VolumeInfo mVolume;
 
-    @Override
-    public void onCreate(Bundle icicle) {
-        super.onCreate(icicle);
-        final Bundle args = getArguments();
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.dashboard.DashboardFragment
+    public String getLogTag() {
+        return "StorageProfileFragment";
+    }
 
-        // Initialize the storage sizes that we can quickly calc.
-        final Context context = getActivity();
-        final StorageManager sm = context.getSystemService(StorageManager.class);
-        mVolume = Utils.maybeInitializeVolume(sm, args);
-        if (mVolume == null) {
+    @Override // com.android.settingslib.core.instrumentation.Instrumentable
+    public int getMetricsCategory() {
+        return 845;
+    }
+
+    @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+    public void onLoaderReset(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader) {
+    }
+
+    @Override // com.android.settings.SettingsPreferenceFragment, androidx.preference.PreferenceFragmentCompat, com.android.settings.dashboard.DashboardFragment, androidx.fragment.app.Fragment, com.android.settingslib.core.lifecycle.ObservablePreferenceFragment
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        Bundle arguments = getArguments();
+        VolumeInfo maybeInitializeVolume = Utils.maybeInitializeVolume((StorageManager) getActivity().getSystemService(StorageManager.class), arguments);
+        this.mVolume = maybeInitializeVolume;
+        if (maybeInitializeVolume == null) {
             getActivity().finish();
             return;
         }
-
-        mPreferenceController.setVolume(mVolume);
-        mUserId = args.getInt(USER_ID_EXTRA, UserHandle.myUserId());
-        mPreferenceController.setUserId(UserHandle.of(mUserId));
+        this.mPreferenceController.setVolume(maybeInitializeVolume);
+        int i = arguments.getInt("userId", UserHandle.myUserId());
+        this.mUserId = i;
+        this.mPreferenceController.setUserId(UserHandle.of(i));
     }
 
-    @Override
+    @Override // com.android.settings.SettingsPreferenceFragment, com.android.settings.core.InstrumentedPreferenceFragment, com.android.settings.dashboard.DashboardFragment, androidx.fragment.app.Fragment, com.android.settingslib.core.lifecycle.ObservablePreferenceFragment
     public void onResume() {
         super.onResume();
-        getLoaderManager().initLoader(APPS_JOB_ID, Bundle.EMPTY, this);
+        getLoaderManager().initLoader(0, Bundle.EMPTY, this);
     }
 
-    @Override
-    public int getMetricsCategory() {
-        return SettingsEnums.SETTINGS_STORAGE_PROFILE;
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.core.InstrumentedPreferenceFragment, com.android.settings.dashboard.DashboardFragment
+    public int getPreferenceScreenResId() {
+        return C0019R$xml.storage_profile_fragment;
     }
 
-    @Override
-    protected String getLogTag() {
-        return TAG;
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.dashboard.DashboardFragment
+    public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
+        ArrayList arrayList = new ArrayList();
+        StorageItemPreferenceController storageItemPreferenceController = new StorageItemPreferenceController(context, this, this.mVolume, new StorageManagerVolumeProvider((StorageManager) context.getSystemService(StorageManager.class)), true);
+        this.mPreferenceController = storageItemPreferenceController;
+        arrayList.add(storageItemPreferenceController);
+        return arrayList;
     }
 
-    @Override
-    protected int getPreferenceScreenResId() {
-        return R.xml.storage_profile_fragment;
+    @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+    public Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> onCreateLoader(int i, Bundle bundle) {
+        Context context = getContext();
+        return new StorageAsyncLoader(context, (UserManager) context.getSystemService(UserManager.class), this.mVolume.fsUuid, new StorageStatsSource(context), context.getPackageManager());
     }
 
-    @Override
-    protected List<AbstractPreferenceController> createPreferenceControllers(Context context) {
-        final List<AbstractPreferenceController> controllers = new ArrayList<>();
-        final StorageManager sm = context.getSystemService(StorageManager.class);
-        mPreferenceController =
-                new StorageItemPreferenceController(
-                        context,
-                        this,
-                        mVolume,
-                        new StorageManagerVolumeProvider(sm),
-                        /* isWorkProfile */ true);
-        controllers.add(mPreferenceController);
-        return controllers;
+    public void onLoadFinished(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader, SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray) {
+        this.mPreferenceController.onLoadFinished(sparseArray, this.mUserId);
     }
 
-    @Override
-    public Loader<SparseArray<AppsStorageResult>> onCreateLoader(int id, Bundle args) {
-        final Context context = getContext();
-        return new StorageAsyncLoader(context,
-                context.getSystemService(UserManager.class),
-                mVolume.fsUuid,
-                new StorageStatsSource(context),
-                context.getPackageManager());
-    }
-
-    @Override
-    public void onLoadFinished(Loader<SparseArray<AppsStorageResult>> loader,
-            SparseArray<AppsStorageResult> result) {
-        mPreferenceController.onLoadFinished(result, mUserId);
-    }
-
-    @Override
-    public void onLoaderReset(Loader<SparseArray<AppsStorageResult>> loader) {
-    }
-
-    @VisibleForTesting
-    void setPreferenceController(StorageItemPreferenceController controller) {
-        mPreferenceController = controller;
+    /* access modifiers changed from: package-private */
+    public void setPreferenceController(StorageItemPreferenceController storageItemPreferenceController) {
+        this.mPreferenceController = storageItemPreferenceController;
     }
 }

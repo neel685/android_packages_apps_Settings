@@ -1,171 +1,93 @@
-/*
- * Copyright (C) 2017 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo.storage;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.provider.Settings;
 import android.util.SparseArray;
-
-import androidx.annotation.VisibleForTesting;
-
+import com.android.settings.deviceinfo.storage.StorageAsyncLoader;
 import com.android.settingslib.applications.StorageStatsSource;
 import com.android.settingslib.deviceinfo.PrivateStorageInfo;
-
 import java.util.concurrent.TimeUnit;
 
 public class CachedStorageValuesHelper {
-
-    @VisibleForTesting public static final String SHARED_PREFERENCES_NAME = "CachedStorageValues";
-    public static final String TIMESTAMP_KEY = "last_query_timestamp";
-    public static final String FREE_BYTES_KEY = "free_bytes";
-    public static final String TOTAL_BYTES_KEY = "total_bytes";
-    public static final String GAME_APPS_SIZE_KEY = "game_apps_size";
-    public static final String MUSIC_APPS_SIZE_KEY = "music_apps_size";
-    public static final String VIDEO_APPS_SIZE_KEY = "video_apps_size";
-    public static final String PHOTO_APPS_SIZE_KEY = "photo_apps_size";
-    public static final String OTHER_APPS_SIZE_KEY = "other_apps_size";
-    public static final String CACHE_APPS_SIZE_KEY = "cache_apps_size";
-    public static final String EXTERNAL_TOTAL_BYTES = "external_total_bytes";
-    public static final String EXTERNAL_AUDIO_BYTES = "external_audio_bytes";
-    public static final String EXTERNAL_VIDEO_BYTES = "external_video_bytes";
-    public static final String EXTERNAL_IMAGE_BYTES = "external_image_bytes";
-    public static final String EXTERNAL_APP_BYTES = "external_apps_bytes";
-    public static final String USER_ID_KEY = "user_id";
+    public static final String SHARED_PREFERENCES_NAME = "CachedStorageValues";
     private final Long mClobberThreshold;
+    protected Clock mClock = new Clock();
     private final SharedPreferences mSharedPreferences;
     private final int mUserId;
-    // This clock is used to provide the time. By default, it uses the system clock, but can be
-    // replaced for test purposes.
-    protected Clock mClock;
 
-    public CachedStorageValuesHelper(Context context, int userId) {
-        mSharedPreferences =
-                context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
-        mClock = new Clock();
-        mUserId = userId;
-        mClobberThreshold =
-                Settings.Global.getLong(
-                        context.getContentResolver(),
-                        Settings.Global.STORAGE_SETTINGS_CLOBBER_THRESHOLD,
-                        TimeUnit.MINUTES.toMillis(5));
+    public CachedStorageValuesHelper(Context context, int i) {
+        this.mSharedPreferences = context.getSharedPreferences(SHARED_PREFERENCES_NAME, 0);
+        this.mUserId = i;
+        this.mClobberThreshold = Long.valueOf(Settings.Global.getLong(context.getContentResolver(), "storage_settings_clobber_threshold", TimeUnit.MINUTES.toMillis(5)));
     }
 
     public PrivateStorageInfo getCachedPrivateStorageInfo() {
         if (!isDataValid()) {
             return null;
         }
-        final long freeBytes = mSharedPreferences.getLong(FREE_BYTES_KEY, -1);
-        final long totalBytes = mSharedPreferences.getLong(TOTAL_BYTES_KEY, -1);
-        if (freeBytes < 0 || totalBytes < 0) {
+        long j = this.mSharedPreferences.getLong("free_bytes", -1);
+        long j2 = this.mSharedPreferences.getLong("total_bytes", -1);
+        if (j < 0 || j2 < 0) {
             return null;
         }
-
-        return new PrivateStorageInfo(freeBytes, totalBytes);
+        return new PrivateStorageInfo(j, j2);
     }
 
     public SparseArray<StorageAsyncLoader.AppsStorageResult> getCachedAppsStorageResult() {
         if (!isDataValid()) {
             return null;
         }
-        final long gamesSize = mSharedPreferences.getLong(GAME_APPS_SIZE_KEY, -1);
-        final long musicAppsSize = mSharedPreferences.getLong(MUSIC_APPS_SIZE_KEY, -1);
-        final long videoAppsSize = mSharedPreferences.getLong(VIDEO_APPS_SIZE_KEY, -1);
-        final long photoAppSize = mSharedPreferences.getLong(PHOTO_APPS_SIZE_KEY, -1);
-        final long otherAppsSize = mSharedPreferences.getLong(OTHER_APPS_SIZE_KEY, -1);
-        final long cacheSize = mSharedPreferences.getLong(CACHE_APPS_SIZE_KEY, -1);
-        if (gamesSize < 0
-                || musicAppsSize < 0
-                || videoAppsSize < 0
-                || photoAppSize < 0
-                || otherAppsSize < 0
-                || cacheSize < 0) {
+        long j = this.mSharedPreferences.getLong("game_apps_size", -1);
+        long j2 = this.mSharedPreferences.getLong("music_apps_size", -1);
+        long j3 = this.mSharedPreferences.getLong("video_apps_size", -1);
+        long j4 = this.mSharedPreferences.getLong("photo_apps_size", -1);
+        long j5 = this.mSharedPreferences.getLong("other_apps_size", -1);
+        long j6 = this.mSharedPreferences.getLong("cache_apps_size", -1);
+        if (j < 0 || j2 < 0 || j3 < 0 || j4 < 0 || j5 < 0 || j6 < 0) {
             return null;
         }
-
-        final long externalTotalBytes = mSharedPreferences.getLong(EXTERNAL_TOTAL_BYTES, -1);
-        final long externalAudioBytes = mSharedPreferences.getLong(EXTERNAL_AUDIO_BYTES, -1);
-        final long externalVideoBytes = mSharedPreferences.getLong(EXTERNAL_VIDEO_BYTES, -1);
-        final long externalImageBytes = mSharedPreferences.getLong(EXTERNAL_IMAGE_BYTES, -1);
-        final long externalAppBytes = mSharedPreferences.getLong(EXTERNAL_APP_BYTES, -1);
-        if (externalTotalBytes < 0
-                || externalAudioBytes < 0
-                || externalVideoBytes < 0
-                || externalImageBytes < 0
-                || externalAppBytes < 0) {
+        long j7 = this.mSharedPreferences.getLong("external_total_bytes", -1);
+        long j8 = this.mSharedPreferences.getLong("external_audio_bytes", -1);
+        long j9 = this.mSharedPreferences.getLong("external_video_bytes", -1);
+        long j10 = this.mSharedPreferences.getLong("external_image_bytes", -1);
+        long j11 = this.mSharedPreferences.getLong("external_apps_bytes", -1);
+        if (j7 < 0 || j8 < 0 || j9 < 0 || j10 < 0 || j11 < 0) {
             return null;
         }
-
-        final StorageStatsSource.ExternalStorageStats externalStats =
-                new StorageStatsSource.ExternalStorageStats(
-                        externalTotalBytes,
-                        externalAudioBytes,
-                        externalVideoBytes,
-                        externalImageBytes,
-                        externalAppBytes);
-        final StorageAsyncLoader.AppsStorageResult result =
-                new StorageAsyncLoader.AppsStorageResult();
-        result.gamesSize = gamesSize;
-        result.musicAppsSize = musicAppsSize;
-        result.videoAppsSize = videoAppsSize;
-        result.photosAppsSize = photoAppSize;
-        result.otherAppsSize = otherAppsSize;
-        result.cacheSize = cacheSize;
-        result.externalStats = externalStats;
-        final SparseArray<StorageAsyncLoader.AppsStorageResult> resultArray = new SparseArray<>();
-        resultArray.append(mUserId, result);
-        return resultArray;
+        StorageStatsSource.ExternalStorageStats externalStorageStats = new StorageStatsSource.ExternalStorageStats(j7, j8, j9, j10, j11);
+        StorageAsyncLoader.AppsStorageResult appsStorageResult = new StorageAsyncLoader.AppsStorageResult();
+        appsStorageResult.gamesSize = j;
+        appsStorageResult.musicAppsSize = j2;
+        appsStorageResult.videoAppsSize = j3;
+        appsStorageResult.photosAppsSize = j4;
+        appsStorageResult.otherAppsSize = j5;
+        appsStorageResult.cacheSize = j6;
+        appsStorageResult.externalStats = externalStorageStats;
+        SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray = new SparseArray<>();
+        sparseArray.append(this.mUserId, appsStorageResult);
+        return sparseArray;
     }
 
-    public void cacheResult(
-            PrivateStorageInfo storageInfo, StorageAsyncLoader.AppsStorageResult result) {
-        mSharedPreferences
-                .edit()
-                .putLong(FREE_BYTES_KEY, storageInfo.freeBytes)
-                .putLong(TOTAL_BYTES_KEY, storageInfo.totalBytes)
-                .putLong(GAME_APPS_SIZE_KEY, result.gamesSize)
-                .putLong(MUSIC_APPS_SIZE_KEY, result.musicAppsSize)
-                .putLong(VIDEO_APPS_SIZE_KEY, result.videoAppsSize)
-                .putLong(PHOTO_APPS_SIZE_KEY, result.photosAppsSize)
-                .putLong(OTHER_APPS_SIZE_KEY, result.otherAppsSize)
-                .putLong(CACHE_APPS_SIZE_KEY, result.cacheSize)
-                .putLong(EXTERNAL_TOTAL_BYTES, result.externalStats.totalBytes)
-                .putLong(EXTERNAL_AUDIO_BYTES, result.externalStats.audioBytes)
-                .putLong(EXTERNAL_VIDEO_BYTES, result.externalStats.videoBytes)
-                .putLong(EXTERNAL_IMAGE_BYTES, result.externalStats.imageBytes)
-                .putLong(EXTERNAL_APP_BYTES, result.externalStats.appBytes)
-                .putInt(USER_ID_KEY, mUserId)
-                .putLong(TIMESTAMP_KEY, mClock.getCurrentTime())
-                .apply();
+    public void cacheResult(PrivateStorageInfo privateStorageInfo, StorageAsyncLoader.AppsStorageResult appsStorageResult) {
+        this.mSharedPreferences.edit().putLong("free_bytes", privateStorageInfo.freeBytes).putLong("total_bytes", privateStorageInfo.totalBytes).putLong("game_apps_size", appsStorageResult.gamesSize).putLong("music_apps_size", appsStorageResult.musicAppsSize).putLong("video_apps_size", appsStorageResult.videoAppsSize).putLong("photo_apps_size", appsStorageResult.photosAppsSize).putLong("other_apps_size", appsStorageResult.otherAppsSize).putLong("cache_apps_size", appsStorageResult.cacheSize).putLong("external_total_bytes", appsStorageResult.externalStats.totalBytes).putLong("external_audio_bytes", appsStorageResult.externalStats.audioBytes).putLong("external_video_bytes", appsStorageResult.externalStats.videoBytes).putLong("external_image_bytes", appsStorageResult.externalStats.imageBytes).putLong("external_apps_bytes", appsStorageResult.externalStats.appBytes).putInt("user_id", this.mUserId).putLong("last_query_timestamp", this.mClock.getCurrentTime()).apply();
     }
 
     private boolean isDataValid() {
-        final int cachedUserId = mSharedPreferences.getInt(USER_ID_KEY, -1);
-        if (cachedUserId != mUserId) {
+        if (this.mSharedPreferences.getInt("user_id", -1) != this.mUserId) {
             return false;
         }
-
-        final long lastQueryTime = mSharedPreferences.getLong(TIMESTAMP_KEY, Long.MAX_VALUE);
-        final long currentTime = mClock.getCurrentTime();
-        return currentTime - lastQueryTime < mClobberThreshold;
+        if (this.mClock.getCurrentTime() - this.mSharedPreferences.getLong("last_query_timestamp", Long.MAX_VALUE) < this.mClobberThreshold.longValue()) {
+            return true;
+        }
+        return false;
     }
 
-    /** Clock provides the current time. */
-    static class Clock {
+    /* access modifiers changed from: package-private */
+    public static class Clock {
+        Clock() {
+        }
+
         public long getCurrentTime() {
             return System.currentTimeMillis();
         }

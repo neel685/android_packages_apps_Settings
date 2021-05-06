@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2016 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
 
 import android.app.Activity;
-import android.app.settings.SettingsEnums;
 import android.app.usage.StorageStatsManager;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -29,16 +12,16 @@ import android.os.storage.VolumeInfo;
 import android.provider.SearchIndexableResource;
 import android.util.SparseArray;
 import android.view.View;
-
-import androidx.annotation.VisibleForTesting;
+import androidx.fragment.app.FragmentActivity;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
 import androidx.preference.Preference;
-
-import com.android.settings.R;
+import com.android.settings.C0010R$id;
+import com.android.settings.C0017R$string;
+import com.android.settings.C0019R$xml;
 import com.android.settings.Utils;
 import com.android.settings.dashboard.DashboardFragment;
-import com.android.settings.dashboard.profileselector.ProfileSelectFragment;
+import com.android.settings.deviceinfo.StorageDashboardFragment;
 import com.android.settings.deviceinfo.storage.AutomaticStorageManagementSwitchPreferenceController;
 import com.android.settings.deviceinfo.storage.CachedStorageValuesHelper;
 import com.android.settings.deviceinfo.storage.SecondaryUserController;
@@ -52,354 +35,319 @@ import com.android.settingslib.applications.StorageStatsSource;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.deviceinfo.PrivateStorageInfo;
 import com.android.settingslib.deviceinfo.StorageManagerVolumeProvider;
-import com.android.settingslib.search.SearchIndexable;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
-@SearchIndexable
-public class StorageDashboardFragment extends DashboardFragment
-        implements
-        LoaderManager.LoaderCallbacks<SparseArray<StorageAsyncLoader.AppsStorageResult>> {
-    private static final String TAG = "StorageDashboardFrag";
-    private static final String SUMMARY_PREF_KEY = "storage_summary";
-    private static final int STORAGE_JOB_ID = 0;
-    private static final int ICON_JOB_ID = 1;
-    private static final int VOLUME_SIZE_JOB_ID = 2;
+public class StorageDashboardFragment extends DashboardFragment implements LoaderManager.LoaderCallbacks<SparseArray<StorageAsyncLoader.AppsStorageResult>> {
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER = new BaseSearchIndexProvider() {
+        /* class com.android.settings.deviceinfo.StorageDashboardFragment.AnonymousClass1 */
 
-    private VolumeInfo mVolume;
-    private PrivateStorageInfo mStorageInfo;
+        @Override // com.android.settingslib.search.Indexable$SearchIndexProvider, com.android.settings.search.BaseSearchIndexProvider
+        public List<SearchIndexableResource> getXmlResourcesToIndex(Context context, boolean z) {
+            SearchIndexableResource searchIndexableResource = new SearchIndexableResource(context);
+            searchIndexableResource.xmlResId = C0019R$xml.storage_dashboard_fragment;
+            return Arrays.asList(searchIndexableResource);
+        }
+
+        @Override // com.android.settings.search.BaseSearchIndexProvider
+        public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
+            ArrayList arrayList = new ArrayList();
+            arrayList.add(new StorageItemPreferenceController(context, null, null, new StorageManagerVolumeProvider((StorageManager) context.getSystemService(StorageManager.class))));
+            arrayList.addAll(SecondaryUserController.getSecondaryUserControllers(context, (UserManager) context.getSystemService(UserManager.class)));
+            return arrayList;
+        }
+    };
     private SparseArray<StorageAsyncLoader.AppsStorageResult> mAppsResult;
     private CachedStorageValuesHelper mCachedStorageValuesHelper;
-
-    private StorageItemPreferenceController mPreferenceController;
     private PrivateVolumeOptionMenuController mOptionMenuController;
-    private List<AbstractPreferenceController> mSecondaryUsers;
     private boolean mPersonalOnly;
+    private StorageItemPreferenceController mPreferenceController;
+    private List<AbstractPreferenceController> mSecondaryUsers;
+    private PrivateStorageInfo mStorageInfo;
+    private VolumeInfo mVolume;
 
-    @Override
-    public void onCreate(Bundle icicle) {
-        super.onCreate(icicle);
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.dashboard.DashboardFragment
+    public String getLogTag() {
+        return "StorageDashboardFrag";
+    }
 
-        // Initialize the storage sizes that we can quickly calc.
-        final Activity activity = getActivity();
-        StorageManager sm = activity.getSystemService(StorageManager.class);
-        mVolume = Utils.maybeInitializeVolume(sm, getArguments());
-        mPersonalOnly = getArguments().getInt(ProfileSelectFragment.EXTRA_PROFILE)
-                == ProfileSelectFragment.ProfileType.PERSONAL;
-        if (mVolume == null) {
+    @Override // com.android.settingslib.core.instrumentation.Instrumentable
+    public int getMetricsCategory() {
+        return 745;
+    }
+
+    @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+    public void onLoaderReset(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader) {
+    }
+
+    @Override // com.android.settings.SettingsPreferenceFragment, androidx.preference.PreferenceFragmentCompat, com.android.settings.dashboard.DashboardFragment, androidx.fragment.app.Fragment, com.android.settingslib.core.lifecycle.ObservablePreferenceFragment
+    public void onCreate(Bundle bundle) {
+        Preference findPreference;
+        super.onCreate(bundle);
+        FragmentActivity activity = getActivity();
+        this.mVolume = Utils.maybeInitializeVolume((StorageManager) activity.getSystemService(StorageManager.class), getArguments());
+        boolean z = true;
+        if (getArguments().getInt("profile") != 1) {
+            z = false;
+        }
+        this.mPersonalOnly = z;
+        if (this.mVolume == null) {
             activity.finish();
             return;
         }
         initializeOptionsMenu(activity);
-        if (mPersonalOnly) {
-            final Preference summary = getPreferenceScreen().findPreference(SUMMARY_PREF_KEY);
-            if (summary != null) {
-                summary.setVisible(false);
-            }
+        if (this.mPersonalOnly && (findPreference = getPreferenceScreen().findPreference("storage_summary")) != null) {
+            findPreference.setVisible(false);
         }
     }
 
-    @Override
+    @Override // com.android.settings.core.InstrumentedPreferenceFragment, com.android.settings.dashboard.DashboardFragment, androidx.fragment.app.Fragment, com.android.settingslib.core.lifecycle.ObservablePreferenceFragment
     public void onAttach(Context context) {
         super.onAttach(context);
-        use(AutomaticStorageManagementSwitchPreferenceController.class).setFragmentManager(
-                getFragmentManager());
+        ((AutomaticStorageManagementSwitchPreferenceController) use(AutomaticStorageManagementSwitchPreferenceController.class)).setFragmentManager(getFragmentManager());
     }
 
-    @VisibleForTesting
-    void initializeOptionsMenu(Activity activity) {
-        mOptionMenuController = new PrivateVolumeOptionMenuController(
-                activity, mVolume, activity.getPackageManager());
-        getSettingsLifecycle().addObserver(mOptionMenuController);
+    /* access modifiers changed from: package-private */
+    public void initializeOptionsMenu(Activity activity) {
+        this.mOptionMenuController = new PrivateVolumeOptionMenuController(activity, this.mVolume, activity.getPackageManager());
+        getSettingsLifecycle().addObserver(this.mOptionMenuController);
         setHasOptionsMenu(true);
         activity.invalidateOptionsMenu();
     }
 
-    @Override
-    public void onViewCreated(View v, Bundle savedInstanceState) {
-        super.onViewCreated(v, savedInstanceState);
+    @Override // androidx.preference.PreferenceFragmentCompat, androidx.fragment.app.Fragment
+    public void onViewCreated(View view, Bundle bundle) {
+        super.onViewCreated(view, bundle);
         initializeCacheProvider();
         maybeSetLoading(isQuotaSupported());
-
-        final Activity activity = getActivity();
-        EntityHeaderController.newInstance(activity, this /*fragment*/,
-                null /* header view */)
-                .setRecyclerView(getListView(), getSettingsLifecycle())
-                .styleActionBar(activity);
+        FragmentActivity activity = getActivity();
+        EntityHeaderController newInstance = EntityHeaderController.newInstance(activity, this, null);
+        newInstance.setRecyclerView(getListView(), getSettingsLifecycle());
+        newInstance.styleActionBar(activity);
     }
 
-    @Override
+    @Override // com.android.settings.SettingsPreferenceFragment, com.android.settings.core.InstrumentedPreferenceFragment, com.android.settings.dashboard.DashboardFragment, androidx.fragment.app.Fragment, com.android.settingslib.core.lifecycle.ObservablePreferenceFragment
     public void onResume() {
         super.onResume();
-        getLoaderManager().restartLoader(STORAGE_JOB_ID, Bundle.EMPTY, this);
-        getLoaderManager()
-                .restartLoader(VOLUME_SIZE_JOB_ID, Bundle.EMPTY, new VolumeSizeCallbacks());
-        getLoaderManager().restartLoader(ICON_JOB_ID, Bundle.EMPTY, new IconLoaderCallbacks());
+        getLoaderManager().restartLoader(0, Bundle.EMPTY, this);
+        getLoaderManager().restartLoader(2, Bundle.EMPTY, new VolumeSizeCallbacks());
+        getLoaderManager().restartLoader(1, Bundle.EMPTY, new IconLoaderCallbacks());
     }
 
-    @Override
+    @Override // com.android.settings.support.actionbar.HelpResourceProvider
     public int getHelpResource() {
-        return R.string.help_url_storage_dashboard;
+        return C0017R$string.help_url_storage_dashboard;
     }
 
+    /* access modifiers changed from: private */
+    /* access modifiers changed from: public */
     private void onReceivedSizes() {
-        boolean stopLoading = false;
-        if (mStorageInfo != null) {
-            long privateUsedBytes = mStorageInfo.totalBytes - mStorageInfo.freeBytes;
-            mPreferenceController.setVolume(mVolume);
-            mPreferenceController.setUsedSize(privateUsedBytes);
-            mPreferenceController.setTotalSize(mStorageInfo.totalBytes);
-            for (int i = 0, size = mSecondaryUsers.size(); i < size; i++) {
-                AbstractPreferenceController controller = mSecondaryUsers.get(i);
-                if (controller instanceof SecondaryUserController) {
-                    SecondaryUserController userController = (SecondaryUserController) controller;
-                    userController.setTotalSize(mStorageInfo.totalBytes);
+        boolean z;
+        PrivateStorageInfo privateStorageInfo = this.mStorageInfo;
+        if (privateStorageInfo != null) {
+            long j = privateStorageInfo.totalBytes - privateStorageInfo.freeBytes;
+            this.mPreferenceController.setVolume(this.mVolume);
+            this.mPreferenceController.setUsedSize(j);
+            this.mPreferenceController.setTotalSize(this.mStorageInfo.totalBytes);
+            int size = this.mSecondaryUsers.size();
+            for (int i = 0; i < size; i++) {
+                AbstractPreferenceController abstractPreferenceController = this.mSecondaryUsers.get(i);
+                if (abstractPreferenceController instanceof SecondaryUserController) {
+                    ((SecondaryUserController) abstractPreferenceController).setTotalSize(this.mStorageInfo.totalBytes);
                 }
             }
-            stopLoading = true;
-
+            z = true;
+        } else {
+            z = false;
         }
-
-        if (mAppsResult != null) {
-            mPreferenceController.onLoadFinished(mAppsResult, UserHandle.myUserId());
-            updateSecondaryUserControllers(mSecondaryUsers, mAppsResult);
-            stopLoading = true;
+        SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray = this.mAppsResult;
+        if (!(sparseArray == null || sparseArray.get(UserHandle.myUserId()) == null || this.mAppsResult.get(UserHandle.myUserId()).externalStats == null)) {
+            this.mPreferenceController.onLoadFinished(this.mAppsResult, UserHandle.myUserId());
+            updateSecondaryUserControllers(this.mSecondaryUsers, this.mAppsResult);
+            z = true;
         }
-
-        // setLoading always causes a flicker, so let's avoid doing it.
-        if (stopLoading) {
-            if (getView().findViewById(R.id.loading_container).getVisibility() == View.VISIBLE) {
-                setLoading(false, true);
-            }
+        if (z && getView().findViewById(C0010R$id.loading_container).getVisibility() == 0) {
+            setLoading(false, true);
         }
     }
 
-    @Override
-    public int getMetricsCategory() {
-        return SettingsEnums.SETTINGS_STORAGE_CATEGORY;
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.core.InstrumentedPreferenceFragment, com.android.settings.dashboard.DashboardFragment
+    public int getPreferenceScreenResId() {
+        return C0019R$xml.storage_dashboard_fragment;
     }
 
-    @Override
-    protected String getLogTag() {
-        return TAG;
+    /* access modifiers changed from: protected */
+    @Override // com.android.settings.dashboard.DashboardFragment
+    public List<AbstractPreferenceController> createPreferenceControllers(Context context) {
+        ArrayList arrayList = new ArrayList();
+        StorageItemPreferenceController storageItemPreferenceController = new StorageItemPreferenceController(context, this, this.mVolume, new StorageManagerVolumeProvider((StorageManager) context.getSystemService(StorageManager.class)));
+        this.mPreferenceController = storageItemPreferenceController;
+        arrayList.add(storageItemPreferenceController);
+        List<AbstractPreferenceController> secondaryUserControllers = SecondaryUserController.getSecondaryUserControllers(context, (UserManager) context.getSystemService(UserManager.class));
+        this.mSecondaryUsers = secondaryUserControllers;
+        arrayList.addAll(secondaryUserControllers);
+        return arrayList;
     }
 
-    @Override
-    protected int getPreferenceScreenResId() {
-        return R.xml.storage_dashboard_fragment;
+    /* access modifiers changed from: protected */
+    public void setVolume(VolumeInfo volumeInfo) {
+        this.mVolume = volumeInfo;
     }
 
-    @Override
-    protected List<AbstractPreferenceController> createPreferenceControllers(Context context) {
-        final List<AbstractPreferenceController> controllers = new ArrayList<>();
-
-        StorageManager sm = context.getSystemService(StorageManager.class);
-        mPreferenceController = new StorageItemPreferenceController(context, this,
-                mVolume, new StorageManagerVolumeProvider(sm));
-        controllers.add(mPreferenceController);
-
-        final UserManager userManager = context.getSystemService(UserManager.class);
-        mSecondaryUsers = SecondaryUserController.getSecondaryUserControllers(context, userManager);
-        controllers.addAll(mSecondaryUsers);
-
-        return controllers;
-    }
-
-    @VisibleForTesting
-    protected void setVolume(VolumeInfo info) {
-        mVolume = info;
-    }
-
-    /**
-     * Updates the secondary user controller sizes.
-     */
-    private void updateSecondaryUserControllers(List<AbstractPreferenceController> controllers,
-            SparseArray<StorageAsyncLoader.AppsStorageResult> stats) {
-        for (int i = 0, size = controllers.size(); i < size; i++) {
-            AbstractPreferenceController controller = controllers.get(i);
-            if (controller instanceof StorageAsyncLoader.ResultHandler) {
-                StorageAsyncLoader.ResultHandler userController =
-                        (StorageAsyncLoader.ResultHandler) controller;
-                userController.handleResult(stats);
+    private void updateSecondaryUserControllers(List<AbstractPreferenceController> list, SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray) {
+        int size = list.size();
+        for (int i = 0; i < size; i++) {
+            AbstractPreferenceController abstractPreferenceController = list.get(i);
+            if (abstractPreferenceController instanceof StorageAsyncLoader.ResultHandler) {
+                ((StorageAsyncLoader.ResultHandler) abstractPreferenceController).handleResult(sparseArray);
             }
         }
     }
 
-    /**
-     * For Search.
-     */
-    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider() {
-                @Override
-                public List<SearchIndexableResource> getXmlResourcesToIndex(
-                        Context context, boolean enabled) {
-                    final SearchIndexableResource sir = new SearchIndexableResource(context);
-                    sir.xmlResId = R.xml.storage_dashboard_fragment;
-                    return Arrays.asList(sir);
-                }
-
-                @Override
-                public List<AbstractPreferenceController> createPreferenceControllers(
-                        Context context) {
-                    final StorageManager sm = context.getSystemService(StorageManager.class);
-                    final UserManager userManager = context.getSystemService(UserManager.class);
-                    final List<AbstractPreferenceController> controllers = new ArrayList<>();
-                    controllers.add(new StorageItemPreferenceController(context, null /* host */,
-                            null /* volume */, new StorageManagerVolumeProvider(sm)));
-                    controllers.addAll(SecondaryUserController.getSecondaryUserControllers(
-                            context, userManager));
-                    return controllers;
-                }
-
-            };
-
-    @Override
-    public Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> onCreateLoader(int id,
-            Bundle args) {
-        final Context context = getContext();
-        return new StorageAsyncLoader(context, context.getSystemService(UserManager.class),
-                mVolume.fsUuid,
-                new StorageStatsSource(context),
-                context.getPackageManager());
+    @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+    public Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> onCreateLoader(int i, Bundle bundle) {
+        Context context = getContext();
+        return new StorageAsyncLoader(context, (UserManager) context.getSystemService(UserManager.class), this.mVolume.fsUuid, new StorageStatsSource(context), context.getPackageManager());
     }
 
-    @Override
-    public void onLoadFinished(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader,
-            SparseArray<StorageAsyncLoader.AppsStorageResult> data) {
-        mAppsResult = data;
+    public void onLoadFinished(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader, SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray) {
+        this.mAppsResult = sparseArray;
         maybeCacheFreshValues();
         onReceivedSizes();
     }
 
-    @Override
-    public void onLoaderReset(Loader<SparseArray<StorageAsyncLoader.AppsStorageResult>> loader) {
+    public void setCachedStorageValuesHelper(CachedStorageValuesHelper cachedStorageValuesHelper) {
+        this.mCachedStorageValuesHelper = cachedStorageValuesHelper;
     }
 
-    @VisibleForTesting
-    public void setCachedStorageValuesHelper(CachedStorageValuesHelper helper) {
-        mCachedStorageValuesHelper = helper;
-    }
-
-    @VisibleForTesting
     public PrivateStorageInfo getPrivateStorageInfo() {
-        return mStorageInfo;
+        return this.mStorageInfo;
     }
 
-    @VisibleForTesting
-    public void setPrivateStorageInfo(PrivateStorageInfo info) {
-        mStorageInfo = info;
+    public void setPrivateStorageInfo(PrivateStorageInfo privateStorageInfo) {
+        this.mStorageInfo = privateStorageInfo;
     }
 
-    @VisibleForTesting
     public SparseArray<StorageAsyncLoader.AppsStorageResult> getAppsStorageResult() {
-        return mAppsResult;
+        return this.mAppsResult;
     }
 
-    @VisibleForTesting
-    public void setAppsStorageResult(SparseArray<StorageAsyncLoader.AppsStorageResult> info) {
-        mAppsResult = info;
+    public void setAppsStorageResult(SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray) {
+        this.mAppsResult = sparseArray;
     }
 
-    @VisibleForTesting
     public void initializeCachedValues() {
-        PrivateStorageInfo info = mCachedStorageValuesHelper.getCachedPrivateStorageInfo();
-        SparseArray<StorageAsyncLoader.AppsStorageResult> loaderResult =
-                mCachedStorageValuesHelper.getCachedAppsStorageResult();
-        if (info == null || loaderResult == null) {
-            return;
+        PrivateStorageInfo cachedPrivateStorageInfo = this.mCachedStorageValuesHelper.getCachedPrivateStorageInfo();
+        SparseArray<StorageAsyncLoader.AppsStorageResult> cachedAppsStorageResult = this.mCachedStorageValuesHelper.getCachedAppsStorageResult();
+        if (cachedPrivateStorageInfo != null && cachedAppsStorageResult != null) {
+            this.mStorageInfo = cachedPrivateStorageInfo;
+            this.mAppsResult = cachedAppsStorageResult;
         }
-
-        mStorageInfo = info;
-        mAppsResult = loaderResult;
     }
 
-    @VisibleForTesting
-    public void maybeSetLoading(boolean isQuotaSupported) {
-        // If we have fast stats, we load until both have loaded.
-        // If we have slow stats, we load when we get the total volume sizes.
-        if ((isQuotaSupported && (mStorageInfo == null || mAppsResult == null)) ||
-                (!isQuotaSupported && mStorageInfo == null)) {
-            setLoading(true /* loading */, false /* animate */);
+    public void maybeSetLoading(boolean z) {
+        if ((z && (this.mStorageInfo == null || this.mAppsResult == null)) || (!z && this.mStorageInfo == null)) {
+            setLoading(true, false);
         }
     }
 
     private void initializeCacheProvider() {
-        mCachedStorageValuesHelper =
-                new CachedStorageValuesHelper(getContext(), UserHandle.myUserId());
+        this.mCachedStorageValuesHelper = new CachedStorageValuesHelper(getContext(), UserHandle.myUserId());
         initializeCachedValues();
         onReceivedSizes();
     }
 
+    /* access modifiers changed from: private */
+    /* access modifiers changed from: public */
     private void maybeCacheFreshValues() {
-        if (mStorageInfo != null && mAppsResult != null) {
-            mCachedStorageValuesHelper.cacheResult(
-                    mStorageInfo, mAppsResult.get(UserHandle.myUserId()));
+        SparseArray<StorageAsyncLoader.AppsStorageResult> sparseArray;
+        if (this.mStorageInfo != null && (sparseArray = this.mAppsResult) != null && sparseArray.get(UserHandle.myUserId()) != null && this.mAppsResult.get(UserHandle.myUserId()).externalStats != null) {
+            this.mCachedStorageValuesHelper.cacheResult(this.mStorageInfo, this.mAppsResult.get(UserHandle.myUserId()));
         }
     }
 
     private boolean isQuotaSupported() {
-        final StorageStatsManager stats = getActivity().getSystemService(StorageStatsManager.class);
-        return stats.isQuotaSupported(mVolume.fsUuid);
+        try {
+            return ((StorageStatsManager) getActivity().getSystemService(StorageStatsManager.class)).isQuotaSupported(this.mVolume.fsUuid);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
-    /**
-     * IconLoaderCallbacks exists because StorageDashboardFragment already implements
-     * LoaderCallbacks for a different type.
-     */
-    public final class IconLoaderCallbacks
-            implements LoaderManager.LoaderCallbacks<SparseArray<Drawable>> {
-        @Override
-        public Loader<SparseArray<Drawable>> onCreateLoader(int id, Bundle args) {
-            return new UserIconLoader(
-                    getContext(),
-                    () -> UserIconLoader.loadUserIconsWithContext(getContext()));
-        }
-
-        @Override
-        public void onLoadFinished(
-                Loader<SparseArray<Drawable>> loader, SparseArray<Drawable> data) {
-            mSecondaryUsers
-                    .stream()
-                    .filter(controller -> controller instanceof UserIconLoader.UserIconHandler)
-                    .forEach(
-                            controller ->
-                                    ((UserIconLoader.UserIconHandler) controller)
-                                            .handleUserIcons(data));
-        }
-
-        @Override
+    public final class IconLoaderCallbacks implements LoaderManager.LoaderCallbacks<SparseArray<Drawable>> {
+        @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
         public void onLoaderReset(Loader<SparseArray<Drawable>> loader) {
         }
-    }
 
-    public final class VolumeSizeCallbacks
-            implements LoaderManager.LoaderCallbacks<PrivateStorageInfo> {
-        @Override
-        public Loader<PrivateStorageInfo> onCreateLoader(int id, Bundle args) {
-            Context context = getContext();
-            StorageManager sm = context.getSystemService(StorageManager.class);
-            StorageManagerVolumeProvider smvp = new StorageManagerVolumeProvider(sm);
-            final StorageStatsManager stats = context.getSystemService(StorageStatsManager.class);
-            return new VolumeSizesLoader(context, smvp, stats, mVolume);
+        public IconLoaderCallbacks() {
         }
 
-        @Override
+        @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+        public Loader<SparseArray<Drawable>> onCreateLoader(int i, Bundle bundle) {
+            return new UserIconLoader(StorageDashboardFragment.this.getContext(), new UserIconLoader.FetchUserIconTask() {
+                /* class com.android.settings.deviceinfo.$$Lambda$StorageDashboardFragment$IconLoaderCallbacks$yGwysNy4Bq4_2nwwvU2QePhZgvU */
+
+                @Override // com.android.settings.deviceinfo.storage.UserIconLoader.FetchUserIconTask
+                public final SparseArray getUserIcons() {
+                    return StorageDashboardFragment.IconLoaderCallbacks.this.lambda$onCreateLoader$0$StorageDashboardFragment$IconLoaderCallbacks();
+                }
+            });
+        }
+
+        /* access modifiers changed from: private */
+        /* renamed from: lambda$onCreateLoader$0 */
+        public /* synthetic */ SparseArray lambda$onCreateLoader$0$StorageDashboardFragment$IconLoaderCallbacks() {
+            return UserIconLoader.loadUserIconsWithContext(StorageDashboardFragment.this.getContext());
+        }
+
+        public void onLoadFinished(Loader<SparseArray<Drawable>> loader, SparseArray<Drawable> sparseArray) {
+            StorageDashboardFragment.this.mSecondaryUsers.stream().filter($$Lambda$StorageDashboardFragment$IconLoaderCallbacks$7UIHa462aQ5cO1d2zsPI99b5Y1Y.INSTANCE).forEach(new Consumer(sparseArray) {
+                /* class com.android.settings.deviceinfo.$$Lambda$StorageDashboardFragment$IconLoaderCallbacks$Jn0eBlqBHbuO2COJ4jEmaXSJJc */
+                public final /* synthetic */ SparseArray f$0;
+
+                {
+                    this.f$0 = r1;
+                }
+
+                @Override // java.util.function.Consumer
+                public final void accept(Object obj) {
+                    ((UserIconLoader.UserIconHandler) ((AbstractPreferenceController) obj)).handleUserIcons(this.f$0);
+                }
+            });
+        }
+
+        static /* synthetic */ boolean lambda$onLoadFinished$1(AbstractPreferenceController abstractPreferenceController) {
+            return abstractPreferenceController instanceof UserIconLoader.UserIconHandler;
+        }
+    }
+
+    public final class VolumeSizeCallbacks implements LoaderManager.LoaderCallbacks<PrivateStorageInfo> {
+        @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
         public void onLoaderReset(Loader<PrivateStorageInfo> loader) {
         }
 
-        @Override
-        public void onLoadFinished(
-                Loader<PrivateStorageInfo> loader, PrivateStorageInfo privateStorageInfo) {
+        public VolumeSizeCallbacks() {
+        }
+
+        @Override // androidx.loader.app.LoaderManager.LoaderCallbacks
+        public Loader<PrivateStorageInfo> onCreateLoader(int i, Bundle bundle) {
+            Context context = StorageDashboardFragment.this.getContext();
+            return new VolumeSizesLoader(context, new StorageManagerVolumeProvider((StorageManager) context.getSystemService(StorageManager.class)), (StorageStatsManager) context.getSystemService(StorageStatsManager.class), StorageDashboardFragment.this.mVolume);
+        }
+
+        public void onLoadFinished(Loader<PrivateStorageInfo> loader, PrivateStorageInfo privateStorageInfo) {
             if (privateStorageInfo == null) {
-                getActivity().finish();
+                StorageDashboardFragment.this.getActivity().finish();
                 return;
             }
-
-            mStorageInfo = privateStorageInfo;
-            maybeCacheFreshValues();
-            onReceivedSizes();
+            StorageDashboardFragment.this.mStorageInfo = privateStorageInfo;
+            StorageDashboardFragment.this.maybeCacheFreshValues();
+            StorageDashboardFragment.this.onReceivedSizes();
         }
     }
 }

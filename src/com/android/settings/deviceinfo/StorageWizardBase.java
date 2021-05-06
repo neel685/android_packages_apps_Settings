@@ -1,30 +1,7 @@
-/*
- * Copyright (C) 2015 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
 
-import static android.os.storage.DiskInfo.EXTRA_DISK_ID;
-import static android.os.storage.VolumeInfo.EXTRA_VOLUME_ID;
-
-import static com.android.settings.deviceinfo.StorageSettings.TAG;
-
-import android.annotation.LayoutRes;
-import android.annotation.NonNull;
 import android.content.Intent;
-import android.content.res.Resources.Theme;
+import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -36,174 +13,181 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-
-import androidx.fragment.app.FragmentActivity;
-
-import com.android.settings.R;
+import com.android.settings.C0010R$id;
+import com.android.settings.C0012R$layout;
+import com.android.settings.C0017R$string;
+import com.android.settings.C0018R$style;
 import com.android.settingslib.Utils;
-
 import com.google.android.setupcompat.template.FooterBarMixin;
 import com.google.android.setupcompat.template.FooterButton;
 import com.google.android.setupdesign.GlifLayout;
-
+import com.oneplus.settings.BaseAppCompatActivity;
 import java.text.NumberFormat;
-import java.util.List;
 import java.util.Objects;
 
-public abstract class StorageWizardBase extends FragmentActivity {
-    protected static final String EXTRA_FORMAT_FORGET_UUID = "format_forget_uuid";
-    protected static final String EXTRA_FORMAT_PRIVATE = "format_private";
-    protected static final String EXTRA_FORMAT_SLOW = "format_slow";
-    protected static final String EXTRA_MIGRATE_SKIP = "migrate_skip";
-
-    protected StorageManager mStorage;
-
-    protected VolumeInfo mVolume;
-    protected DiskInfo mDisk;
-
-    private FooterBarMixin mFooterBarMixin;
+public abstract class StorageWizardBase extends BaseAppCompatActivity {
     private FooterButton mBack;
+    protected DiskInfo mDisk;
+    private FooterBarMixin mFooterBarMixin;
     private FooterButton mNext;
+    protected StorageManager mStorage;
+    private final StorageEventListener mStorageListener = new StorageEventListener() {
+        /* class com.android.settings.deviceinfo.StorageWizardBase.AnonymousClass1 */
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        mStorage = getSystemService(StorageManager.class);
-
-        final String volumeId = getIntent().getStringExtra(EXTRA_VOLUME_ID);
-        if (!TextUtils.isEmpty(volumeId)) {
-            mVolume = mStorage.findVolumeById(volumeId);
+        public void onDiskDestroyed(DiskInfo diskInfo) {
+            if (StorageWizardBase.this.mDisk.id.equals(diskInfo.id)) {
+                StorageWizardBase.this.finish();
+            }
         }
+    };
+    protected VolumeInfo mVolume;
 
-        final String diskId = getIntent().getStringExtra(EXTRA_DISK_ID);
-        if (!TextUtils.isEmpty(diskId)) {
-            mDisk = mStorage.findDiskById(diskId);
-        } else if (mVolume != null) {
-            mDisk = mVolume.getDisk();
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, com.oneplus.settings.BaseAppCompatActivity
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        this.mStorage = (StorageManager) getSystemService(StorageManager.class);
+        String stringExtra = getIntent().getStringExtra("android.os.storage.extra.VOLUME_ID");
+        if (!TextUtils.isEmpty(stringExtra)) {
+            this.mVolume = this.mStorage.findVolumeById(stringExtra);
         }
-
-        if (mDisk != null) {
-            mStorage.registerListener(mStorageListener);
+        String stringExtra2 = getIntent().getStringExtra("android.os.storage.extra.DISK_ID");
+        if (!TextUtils.isEmpty(stringExtra2)) {
+            this.mDisk = this.mStorage.findDiskById(stringExtra2);
+        } else {
+            VolumeInfo volumeInfo = this.mVolume;
+            if (volumeInfo != null) {
+                this.mDisk = volumeInfo.getDisk();
+            }
+        }
+        if (this.mDisk != null) {
+            this.mStorage.registerListener(this.mStorageListener);
         }
     }
 
-    @Override
-    public void setContentView(@LayoutRes int layoutResID) {
-        super.setContentView(layoutResID);
+    @Override // androidx.activity.ComponentActivity, androidx.appcompat.app.AppCompatActivity, android.app.Activity
+    public void setContentView(int i) {
+        super.setContentView(i);
+        FooterBarMixin footerBarMixin = (FooterBarMixin) getGlifLayout().getMixin(FooterBarMixin.class);
+        this.mFooterBarMixin = footerBarMixin;
+        FooterButton.Builder builder = new FooterButton.Builder(this);
+        builder.setText(C0017R$string.wizard_back);
+        builder.setListener(new View.OnClickListener() {
+            /* class com.android.settings.deviceinfo.$$Lambda$fM0gCSTTN1T2Je2_NvbxAeyKcxM */
 
-        mFooterBarMixin = getGlifLayout().getMixin(FooterBarMixin.class);
-        mFooterBarMixin.setSecondaryButton(
-                new FooterButton.Builder(this)
-                        .setText(R.string.wizard_back)
-                        .setListener(this::onNavigateBack)
-                        .setButtonType(FooterButton.ButtonType.OTHER)
-                        .setTheme(R.style.SudGlifButton_Secondary)
-                        .build()
-        );
-        mFooterBarMixin.setPrimaryButton(
-                new FooterButton.Builder(this)
-                        .setText(R.string.wizard_next)
-                        .setListener(this::onNavigateNext)
-                        .setButtonType(FooterButton.ButtonType.NEXT)
-                        .setTheme(R.style.SudGlifButton_Primary)
-                        .build()
-        );
-        mBack = mFooterBarMixin.getSecondaryButton();
-        mNext = mFooterBarMixin.getPrimaryButton();
+            public final void onClick(View view) {
+                StorageWizardBase.this.onNavigateBack(view);
+            }
+        });
+        builder.setButtonType(0);
+        builder.setTheme(C0018R$style.OnePlusSecondaryButtonStyle);
+        footerBarMixin.setSecondaryButton(builder.build());
+        FooterBarMixin footerBarMixin2 = this.mFooterBarMixin;
+        FooterButton.Builder builder2 = new FooterButton.Builder(this);
+        builder2.setText(C0017R$string.wizard_next);
+        builder2.setListener(new View.OnClickListener() {
+            /* class com.android.settings.deviceinfo.$$Lambda$zFPWNnsTxDJLytWHRumtDh9D8g */
 
-        setIcon(com.android.internal.R.drawable.ic_sd_card_48dp);
+            public final void onClick(View view) {
+                StorageWizardBase.this.onNavigateNext(view);
+            }
+        });
+        builder2.setButtonType(5);
+        builder2.setTheme(C0018R$style.OnePlusPrimaryButtonStyle);
+        footerBarMixin2.setPrimaryButton(builder2.build());
+        this.mBack = this.mFooterBarMixin.getSecondaryButton();
+        this.mNext = this.mFooterBarMixin.getPrimaryButton();
+        setIcon(17302813);
     }
 
-    @Override
-    protected void onDestroy() {
-        mStorage.unregisterListener(mStorageListener);
+    /* access modifiers changed from: protected */
+    @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity
+    public void onDestroy() {
+        this.mStorage.unregisterListener(this.mStorageListener);
         super.onDestroy();
     }
 
-    @Override
-    protected void onApplyThemeResource(Theme theme, int resid, boolean first) {
-        theme.applyStyle(R.style.SetupWizardPartnerResource, true);
-        super.onApplyThemeResource(theme, resid, first);
+    /* access modifiers changed from: protected */
+    public void onApplyThemeResource(Resources.Theme theme, int i, boolean z) {
+        theme.applyStyle(C0018R$style.SetupWizardPartnerResource, true);
+        super.onApplyThemeResource(theme, i, z);
     }
 
-    protected FooterButton getBackButton() {
-        return mBack;
+    /* access modifiers changed from: protected */
+    public GlifLayout getGlifLayout() {
+        return (GlifLayout) requireViewById(C0010R$id.setup_wizard_layout);
     }
 
-    protected FooterButton getNextButton() {
-        return mNext;
+    /* access modifiers changed from: protected */
+    public ProgressBar getProgressBar() {
+        return (ProgressBar) requireViewById(C0010R$id.storage_wizard_progress);
     }
 
-    protected GlifLayout getGlifLayout() {
-        return requireViewById(R.id.setup_wizard_layout);
+    /* access modifiers changed from: protected */
+    public void setCurrentProgress(int i) {
+        getProgressBar().setProgress(i);
+        ((TextView) requireViewById(C0010R$id.storage_wizard_progress_summary)).setText(NumberFormat.getPercentInstance().format(((double) i) / 100.0d));
     }
 
-    protected ProgressBar getProgressBar() {
-        return requireViewById(R.id.storage_wizard_progress);
+    /* access modifiers changed from: protected */
+    public void setHeaderText(int i, CharSequence... charSequenceArr) {
+        CharSequence expandTemplate = TextUtils.expandTemplate(getText(i), charSequenceArr);
+        getGlifLayout().setHeaderText(expandTemplate);
+        setTitle(expandTemplate);
     }
 
-    protected void setCurrentProgress(int progress) {
-        getProgressBar().setProgress(progress);
-        ((TextView) requireViewById(R.id.storage_wizard_progress_summary)).setText(
-                NumberFormat.getPercentInstance().format((double) progress / 100));
+    /* access modifiers changed from: protected */
+    public void setBodyText(int i, CharSequence... charSequenceArr) {
+        TextView textView = (TextView) requireViewById(C0010R$id.storage_wizard_body);
+        textView.setText(TextUtils.expandTemplate(getText(i), charSequenceArr));
+        textView.setVisibility(0);
     }
 
-    protected void setHeaderText(int resId, CharSequence... args) {
-        final CharSequence headerText = TextUtils.expandTemplate(getText(resId), args);
-        getGlifLayout().setHeaderText(headerText);
-        setTitle(headerText);
+    /* access modifiers changed from: protected */
+    public void setAuxChecklist() {
+        FrameLayout frameLayout = (FrameLayout) requireViewById(C0010R$id.storage_wizard_aux);
+        frameLayout.addView(LayoutInflater.from(frameLayout.getContext()).inflate(C0012R$layout.storage_wizard_checklist, (ViewGroup) frameLayout, false));
+        frameLayout.setVisibility(0);
+        ((TextView) frameLayout.requireViewById(C0010R$id.storage_wizard_migrate_v2_checklist_media)).setText(TextUtils.expandTemplate(getText(C0017R$string.storage_wizard_migrate_v2_checklist_media), getDiskShortDescription()));
     }
 
-    protected void setBodyText(int resId, CharSequence... args) {
-        final TextView body = requireViewById(R.id.storage_wizard_body);
-        body.setText(TextUtils.expandTemplate(getText(resId), args));
-        body.setVisibility(View.VISIBLE);
+    /* access modifiers changed from: protected */
+    public void setBackButtonText(int i, CharSequence... charSequenceArr) {
+        this.mBack.setText(TextUtils.expandTemplate(getText(i), charSequenceArr));
+        this.mBack.setVisibility(0);
     }
 
-    protected void setAuxChecklist() {
-        final FrameLayout aux = requireViewById(R.id.storage_wizard_aux);
-        aux.addView(LayoutInflater.from(aux.getContext())
-                .inflate(R.layout.storage_wizard_checklist, aux, false));
-        aux.setVisibility(View.VISIBLE);
-
-        // Customize string based on disk
-        ((TextView) aux.requireViewById(R.id.storage_wizard_migrate_v2_checklist_media))
-                .setText(TextUtils.expandTemplate(
-                        getText(R.string.storage_wizard_migrate_v2_checklist_media),
-                        getDiskShortDescription()));
+    /* access modifiers changed from: protected */
+    public void setNextButtonText(int i, CharSequence... charSequenceArr) {
+        this.mNext.setText(TextUtils.expandTemplate(getText(i), charSequenceArr));
+        this.mNext.setVisibility(0);
     }
 
-    protected void setBackButtonText(int resId, CharSequence... args) {
-        mBack.setText(TextUtils.expandTemplate(getText(resId), args));
-        mBack.setVisibility(View.VISIBLE);
+    /* access modifiers changed from: protected */
+    public void setBackButtonVisibility(int i) {
+        this.mBack.setVisibility(i);
     }
 
-    protected void setNextButtonText(int resId, CharSequence... args) {
-        mNext.setText(TextUtils.expandTemplate(getText(resId), args));
-        mNext.setVisibility(View.VISIBLE);
+    /* access modifiers changed from: protected */
+    public void setNextButtonVisibility(int i) {
+        this.mNext.setVisibility(i);
     }
 
-    protected void setBackButtonVisibility(int visible) {
-        mBack.setVisibility(visible);
+    /* access modifiers changed from: protected */
+    public void setIcon(int i) {
+        GlifLayout glifLayout = getGlifLayout();
+        Drawable mutate = getDrawable(i).mutate();
+        mutate.setTintList(Utils.getColorAccent(glifLayout.getContext()));
+        glifLayout.setIcon(mutate);
     }
 
-    protected void setNextButtonVisibility(int visible) {
-        mNext.setVisibility(visible);
-    }
-
-    protected void setIcon(int resId) {
-        final GlifLayout layout = getGlifLayout();
-        final Drawable icon = getDrawable(resId).mutate();
-        icon.setTintList(Utils.getColorAccent(layout.getContext()));
-        layout.setIcon(icon);
-    }
-
-    protected void setKeepScreenOn(boolean keepScreenOn) {
-        getGlifLayout().setKeepScreenOn(keepScreenOn);
+    /* access modifiers changed from: protected */
+    public void setKeepScreenOn(boolean z) {
+        getGlifLayout().setKeepScreenOn(z);
     }
 
     public void onNavigateBack(View view) {
@@ -214,84 +198,74 @@ public abstract class StorageWizardBase extends FragmentActivity {
         throw new UnsupportedOperationException();
     }
 
-    private void copyStringExtra(Intent from, Intent to, String key) {
-        if (from.hasExtra(key) && !to.hasExtra(key)) {
-            to.putExtra(key, from.getStringExtra(key));
+    private void copyStringExtra(Intent intent, Intent intent2, String str) {
+        if (intent.hasExtra(str) && !intent2.hasExtra(str)) {
+            intent2.putExtra(str, intent.getStringExtra(str));
         }
     }
 
-    private void copyBooleanExtra(Intent from, Intent to, String key) {
-        if (from.hasExtra(key) && !to.hasExtra(key)) {
-            to.putExtra(key, from.getBooleanExtra(key, false));
+    private void copyBooleanExtra(Intent intent, Intent intent2, String str) {
+        if (intent.hasExtra(str) && !intent2.hasExtra(str)) {
+            intent2.putExtra(str, intent.getBooleanExtra(str, false));
         }
     }
 
-    @Override
     public void startActivity(Intent intent) {
-        final Intent from = getIntent();
-        final Intent to = intent;
-
-        copyStringExtra(from, to, EXTRA_DISK_ID);
-        copyStringExtra(from, to, EXTRA_VOLUME_ID);
-        copyStringExtra(from, to, EXTRA_FORMAT_FORGET_UUID);
-        copyBooleanExtra(from, to, EXTRA_FORMAT_PRIVATE);
-        copyBooleanExtra(from, to, EXTRA_FORMAT_SLOW);
-        copyBooleanExtra(from, to, EXTRA_MIGRATE_SKIP);
-
+        Intent intent2 = getIntent();
+        copyStringExtra(intent2, intent, "android.os.storage.extra.DISK_ID");
+        copyStringExtra(intent2, intent, "android.os.storage.extra.VOLUME_ID");
+        copyStringExtra(intent2, intent, "format_forget_uuid");
+        copyBooleanExtra(intent2, intent, "format_private");
+        copyBooleanExtra(intent2, intent, "format_slow");
+        copyBooleanExtra(intent2, intent, "migrate_skip");
         super.startActivity(intent);
     }
 
-    protected VolumeInfo findFirstVolume(int type) {
-        return findFirstVolume(type, 1);
+    /* access modifiers changed from: protected */
+    public VolumeInfo findFirstVolume(int i) {
+        return findFirstVolume(i, 1);
     }
 
-    protected VolumeInfo findFirstVolume(int type, int attempts) {
+    /* access modifiers changed from: protected */
+    public VolumeInfo findFirstVolume(int i, int i2) {
         while (true) {
-            final List<VolumeInfo> vols = mStorage.getVolumes();
-            for (VolumeInfo vol : vols) {
-                if (Objects.equals(mDisk.getId(), vol.getDiskId()) && (vol.getType() == type)
-                        && (vol.getState() == VolumeInfo.STATE_MOUNTED)) {
-                    return vol;
+            for (VolumeInfo volumeInfo : this.mStorage.getVolumes()) {
+                if (Objects.equals(this.mDisk.getId(), volumeInfo.getDiskId()) && volumeInfo.getType() == i && volumeInfo.getState() == 2) {
+                    return volumeInfo;
                 }
             }
-
-            if (--attempts > 0) {
-                Log.w(TAG, "Missing mounted volume of type " + type + " hosted by disk "
-                        + mDisk.getId() + "; trying again");
-                SystemClock.sleep(250);
-            } else {
+            i2--;
+            if (i2 <= 0) {
                 return null;
             }
+            Log.w("StorageSettings", "Missing mounted volume of type " + i + " hosted by disk " + this.mDisk.getId() + "; trying again");
+            SystemClock.sleep(250);
         }
     }
 
-    protected @NonNull CharSequence getDiskDescription() {
-        if (mDisk != null) {
-            return mDisk.getDescription();
-        } else if (mVolume != null) {
-            return mVolume.getDescription();
-        } else {
-            return getText(R.string.unknown);
+    /* access modifiers changed from: protected */
+    public CharSequence getDiskDescription() {
+        DiskInfo diskInfo = this.mDisk;
+        if (diskInfo != null) {
+            return diskInfo.getDescription();
         }
+        VolumeInfo volumeInfo = this.mVolume;
+        if (volumeInfo != null) {
+            return volumeInfo.getDescription();
+        }
+        return getText(C0017R$string.unknown);
     }
 
-    protected @NonNull CharSequence getDiskShortDescription() {
-        if (mDisk != null) {
-            return mDisk.getShortDescription();
-        } else if (mVolume != null) {
-            return mVolume.getDescription();
-        } else {
-            return getText(R.string.unknown);
+    /* access modifiers changed from: protected */
+    public CharSequence getDiskShortDescription() {
+        DiskInfo diskInfo = this.mDisk;
+        if (diskInfo != null) {
+            return diskInfo.getShortDescription();
         }
+        VolumeInfo volumeInfo = this.mVolume;
+        if (volumeInfo != null) {
+            return volumeInfo.getDescription();
+        }
+        return getText(C0017R$string.unknown);
     }
-
-    private final StorageEventListener mStorageListener = new StorageEventListener() {
-        @Override
-        public void onDiskDestroyed(DiskInfo disk) {
-            // We know mDisk != null.
-            if (mDisk.id.equals(disk.id)) {
-                finish();
-            }
-        }
-    };
 }

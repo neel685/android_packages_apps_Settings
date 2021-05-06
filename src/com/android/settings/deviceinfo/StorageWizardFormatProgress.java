@@ -1,24 +1,4 @@
-/*
- * Copyright (C) 2015 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
-
-import static android.os.storage.VolumeInfo.TYPE_PRIVATE;
-
-import static com.android.settings.deviceinfo.StorageSettings.TAG;
 
 import android.content.Intent;
 import android.content.pm.IPackageMoveObserver;
@@ -30,98 +10,84 @@ import android.os.SystemProperties;
 import android.os.storage.StorageManager;
 import android.os.storage.VolumeInfo;
 import android.util.Log;
-import android.view.View;
 import android.widget.Toast;
-
-import com.android.settings.R;
-
+import com.android.settings.C0012R$layout;
+import com.android.settings.C0017R$string;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class StorageWizardFormatProgress extends StorageWizardBase {
-    private static final String PROP_DEBUG_STORAGE_SLOW = "sys.debug.storage_slow";
-
     private boolean mFormatPrivate;
-
     private PartitionTask mTask;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (mDisk == null) {
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, com.android.settings.deviceinfo.StorageWizardBase, com.oneplus.settings.BaseAppCompatActivity
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        if (this.mDisk == null) {
             finish();
             return;
         }
-        setContentView(R.layout.storage_wizard_progress);
+        setContentView(C0012R$layout.storage_wizard_progress);
         setKeepScreenOn(true);
-
-        mFormatPrivate = getIntent().getBooleanExtra(EXTRA_FORMAT_PRIVATE, false);
-
-        setHeaderText(R.string.storage_wizard_format_progress_title, getDiskShortDescription());
-        setBodyText(R.string.storage_wizard_format_progress_body, getDiskDescription());
-        setBackButtonVisibility(View.INVISIBLE);
-        setNextButtonVisibility(View.INVISIBLE);
-        mTask = (PartitionTask) getLastCustomNonConfigurationInstance();
-        if (mTask == null) {
-            mTask = new PartitionTask();
-            mTask.setActivity(this);
-            mTask.execute();
-        } else {
-            mTask.setActivity(this);
+        this.mFormatPrivate = getIntent().getBooleanExtra("format_private", false);
+        setHeaderText(C0017R$string.storage_wizard_format_progress_title, getDiskShortDescription());
+        setBodyText(C0017R$string.storage_wizard_format_progress_body, getDiskDescription());
+        setBackButtonVisibility(4);
+        setNextButtonVisibility(4);
+        PartitionTask partitionTask = (PartitionTask) getLastCustomNonConfigurationInstance();
+        this.mTask = partitionTask;
+        if (partitionTask == null) {
+            PartitionTask partitionTask2 = new PartitionTask();
+            this.mTask = partitionTask2;
+            partitionTask2.setActivity(this);
+            this.mTask.execute(new Void[0]);
+            return;
         }
+        partitionTask.setActivity(this);
     }
 
-    @Override
+    @Override // androidx.activity.ComponentActivity
     public Object onRetainCustomNonConfigurationInstance() {
-        return mTask;
+        return this.mTask;
     }
 
     public static class PartitionTask extends AsyncTask<Void, Integer, Exception> {
         public StorageWizardFormatProgress mActivity;
-
+        private volatile long mPrivateBench;
         private volatile int mProgress = 20;
 
-        private volatile long mPrivateBench;
-
-        @Override
-        protected Exception doInBackground(Void... params) {
-            final StorageWizardFormatProgress activity = mActivity;
-            final StorageManager storage = mActivity.mStorage;
+        /* access modifiers changed from: protected */
+        public Exception doInBackground(Void... voidArr) {
+            StorageWizardFormatProgress storageWizardFormatProgress = this.mActivity;
+            StorageManager storageManager = storageWizardFormatProgress.mStorage;
             try {
-                if (activity.mFormatPrivate) {
-                    storage.partitionPrivate(activity.mDisk.getId());
+                if (storageWizardFormatProgress.mFormatPrivate) {
+                    storageManager.partitionPrivate(storageWizardFormatProgress.mDisk.getId());
                     publishProgress(40);
+                    VolumeInfo findFirstVolume = storageWizardFormatProgress.findFirstVolume(1, 50);
+                    final CompletableFuture completableFuture = new CompletableFuture();
+                    if (findFirstVolume != null) {
+                        storageManager.benchmark(findFirstVolume.getId(), new IVoldTaskListener.Stub() {
+                            /* class com.android.settings.deviceinfo.StorageWizardFormatProgress.PartitionTask.AnonymousClass1 */
 
-                    final VolumeInfo privateVol = activity.findFirstVolume(TYPE_PRIVATE, 25);
-                    final CompletableFuture<PersistableBundle> result = new CompletableFuture<>();
-                    storage.benchmark(privateVol.getId(), new IVoldTaskListener.Stub() {
-                        @Override
-                        public void onStatus(int status, PersistableBundle extras) {
-                            // Map benchmark 0-100% progress onto 40-80%
-                            publishProgress(40 + ((status * 40) / 100));
-                        }
+                            public void onStatus(int i, PersistableBundle persistableBundle) {
+                                PartitionTask.this.publishProgress(new Integer[]{Integer.valueOf(((i * 40) / 100) + 40)});
+                            }
 
-                        @Override
-                        public void onFinished(int status, PersistableBundle extras) {
-                            result.complete(extras);
-                        }
-                    });
-                    mPrivateBench = result.get(60, TimeUnit.SECONDS).getLong("run", Long.MAX_VALUE);
-
-                    // If we just adopted the device that had been providing
-                    // physical storage, then automatically move storage to the
-                    // new emulated volume.
-                    if (activity.mDisk.isDefaultPrimary()
-                            && Objects.equals(storage.getPrimaryStorageUuid(),
-                                    StorageManager.UUID_PRIMARY_PHYSICAL)) {
-                        Log.d(TAG, "Just formatted primary physical; silently moving "
-                                + "storage to new emulated volume");
-                        storage.setPrimaryStorageUuid(privateVol.getFsUuid(), new SilentObserver());
+                            public void onFinished(int i, PersistableBundle persistableBundle) {
+                                completableFuture.complete(persistableBundle);
+                            }
+                        });
+                        this.mPrivateBench = ((PersistableBundle) completableFuture.get(60, TimeUnit.SECONDS)).getLong("run", Long.MAX_VALUE);
                     }
-
+                    if (storageWizardFormatProgress.mDisk.isDefaultPrimary() && Objects.equals(storageManager.getPrimaryStorageUuid(), "primary_physical")) {
+                        Log.d("StorageSettings", "Just formatted primary physical; silently moving storage to new emulated volume");
+                        storageManager.setPrimaryStorageUuid(findFirstVolume.getFsUuid(), new SilentObserver());
+                    }
                 } else {
-                    storage.partitionPublic(activity.mDisk.getId());
+                    storageManager.partitionPublic(storageWizardFormatProgress.mDisk.getId());
                 }
                 return null;
             } catch (Exception e) {
@@ -129,99 +95,62 @@ public class StorageWizardFormatProgress extends StorageWizardBase {
             }
         }
 
-        @Override
-        protected void onProgressUpdate(Integer... progress) {
-            mProgress = progress[0];
-            mActivity.setCurrentProgress(mProgress);
+        /* access modifiers changed from: protected */
+        public void onProgressUpdate(Integer... numArr) {
+            this.mProgress = numArr[0].intValue();
+            this.mActivity.setCurrentProgress(this.mProgress);
         }
 
-        public void setActivity(StorageWizardFormatProgress activity) {
-            mActivity = activity;
-            mActivity.setCurrentProgress(mProgress);
+        public void setActivity(StorageWizardFormatProgress storageWizardFormatProgress) {
+            this.mActivity = storageWizardFormatProgress;
+            storageWizardFormatProgress.setCurrentProgress(this.mProgress);
         }
 
-        @Override
-        protected void onPostExecute(Exception e) {
-            final StorageWizardFormatProgress activity = mActivity;
-            if (activity.isDestroyed()) {
-                return;
-            }
-
-            if (e != null) {
-                Log.e(TAG, "Failed to partition", e);
-                Toast.makeText(activity, e.getMessage(), Toast.LENGTH_LONG).show();
-                activity.finishAffinity();
-                return;
-            }
-
-            if (activity.mFormatPrivate) {
-                // When the adoptable storage feature originally launched, we
-                // benchmarked both internal storage and the newly adopted
-                // storage and we warned if the adopted device was less than
-                // 0.25x the speed of internal. (The goal was to help set user
-                // expectations and encourage use of devices comparable to
-                // internal storage performance.)
-
-                // However, since then, internal storage has started moving from
-                // eMMC to UFS, which can significantly outperform adopted
-                // devices, causing the speed warning to always trigger. To
-                // mitigate this, we've switched to using a static threshold.
-
-                // The static threshold was derived by running the benchmark on
-                // a wide selection of SD cards from several vendors; here are
-                // some 50th percentile results from 20+ runs of each card:
-
-                // 8GB C4 40MB/s+: 3282ms
-                // 16GB C10 40MB/s+: 1881ms
-                // 32GB C10 40MB/s+: 2897ms
-                // 32GB U3 80MB/s+: 1595ms
-                // 32GB C10 80MB/s+: 1680ms
-                // 128GB U1 80MB/s+: 1532ms
-
-                // Thus a 2000ms static threshold strikes a reasonable balance
-                // to help us identify slower cards. Users can still proceed
-                // with these slower cards; we're just showing a warning.
-
-                // The above analysis was done using the "r1572:w1001:s285"
-                // benchmark, and it should be redone any time the benchmark
-                // changes.
-
-                Log.d(TAG, "New volume took " + mPrivateBench + "ms to run benchmark");
-                if (mPrivateBench > 2000
-                        || SystemProperties.getBoolean(PROP_DEBUG_STORAGE_SLOW, false)) {
-                    mActivity.onFormatFinishedSlow();
+        /* access modifiers changed from: protected */
+        public void onPostExecute(Exception exc) {
+            StorageWizardFormatProgress storageWizardFormatProgress = this.mActivity;
+            if (!storageWizardFormatProgress.isDestroyed()) {
+                if (exc != null) {
+                    Log.e("StorageSettings", "Failed to partition", exc);
+                    Toast.makeText(storageWizardFormatProgress, exc.getMessage(), 1).show();
+                    storageWizardFormatProgress.finishAffinity();
+                } else if (storageWizardFormatProgress.mFormatPrivate) {
+                    Log.d("StorageSettings", "New volume took " + this.mPrivateBench + "ms to run benchmark");
+                    if (this.mPrivateBench > 2000 || SystemProperties.getBoolean("sys.debug.storage_slow", false)) {
+                        this.mActivity.onFormatFinishedSlow();
+                    } else {
+                        this.mActivity.onFormatFinished();
+                    }
                 } else {
-                    mActivity.onFormatFinished();
+                    this.mActivity.onFormatFinished();
                 }
-            } else {
-                mActivity.onFormatFinished();
             }
         }
     }
 
     public void onFormatFinished() {
-        final Intent intent = new Intent(this, StorageWizardFormatSlow.class);
-        intent.putExtra(EXTRA_FORMAT_SLOW, false);
+        Intent intent = new Intent(this, StorageWizardFormatSlow.class);
+        intent.putExtra("format_slow", false);
         startActivity(intent);
         finishAffinity();
     }
 
     public void onFormatFinishedSlow() {
-        final Intent intent = new Intent(this, StorageWizardFormatSlow.class);
-        intent.putExtra(EXTRA_FORMAT_SLOW, true);
+        Intent intent = new Intent(this, StorageWizardFormatSlow.class);
+        intent.putExtra("format_slow", true);
         startActivity(intent);
         finishAffinity();
     }
 
-    private static class SilentObserver extends IPackageMoveObserver.Stub {
-        @Override
-        public void onCreated(int moveId, Bundle extras) {
-            // Ignored
+    /* access modifiers changed from: private */
+    public static class SilentObserver extends IPackageMoveObserver.Stub {
+        public void onCreated(int i, Bundle bundle) {
         }
 
-        @Override
-        public void onStatusChanged(int moveId, int status, long estMillis) {
-            // Ignored
+        public void onStatusChanged(int i, int i2, long j) {
+        }
+
+        private SilentObserver() {
         }
     }
 }

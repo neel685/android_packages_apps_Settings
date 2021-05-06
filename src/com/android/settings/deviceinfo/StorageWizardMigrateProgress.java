@@ -1,95 +1,61 @@
-/*
- * Copyright (C) 2015 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.android.settings.deviceinfo;
 
-import static android.content.pm.PackageManager.EXTRA_MOVE_ID;
-
-import static com.android.settings.deviceinfo.StorageSettings.TAG;
-
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.MoveCallback;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.storage.DiskInfo;
 import android.util.Log;
-import android.view.View;
 import android.widget.Toast;
-
-import com.android.settings.R;
+import com.android.settings.C0008R$drawable;
+import com.android.settings.C0012R$layout;
+import com.android.settings.C0017R$string;
 
 public class StorageWizardMigrateProgress extends StorageWizardBase {
-    private static final String ACTION_FINISH_WIZARD = "com.android.systemui.action.FINISH_WIZARD";
+    private final PackageManager.MoveCallback mCallback = new PackageManager.MoveCallback() {
+        /* class com.android.settings.deviceinfo.StorageWizardMigrateProgress.AnonymousClass1 */
 
-    private int mMoveId;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (mVolume == null) {
-            finish();
-            return;
-        }
-        setContentView(R.layout.storage_wizard_progress);
-
-        mMoveId = getIntent().getIntExtra(EXTRA_MOVE_ID, -1);
-
-        setIcon(R.drawable.ic_swap_horiz);
-        setHeaderText(R.string.storage_wizard_migrate_progress_v2_title);
-        setAuxChecklist();
-        setBackButtonVisibility(View.INVISIBLE);
-        setNextButtonVisibility(View.INVISIBLE);
-        // Register for updates and push through current status
-        getPackageManager().registerMoveCallback(mCallback, new Handler());
-        mCallback.onStatusChanged(mMoveId, getPackageManager().getMoveStatus(mMoveId), -1);
-    }
-
-    private final MoveCallback mCallback = new MoveCallback() {
-        @Override
-        public void onStatusChanged(int moveId, int status, long estMillis) {
-            if (mMoveId != moveId) return;
-
-            final Context context = StorageWizardMigrateProgress.this;
-            if (PackageManager.isMoveStatusFinished(status)) {
-                Log.d(TAG, "Finished with status " + status);
-                if (status == PackageManager.MOVE_SUCCEEDED) {
-                    if (mDisk != null) {
-                        // Kinda lame, but tear down that shiny finished
-                        // notification, since user is still in wizard flow
-                        final Intent finishIntent = new Intent(ACTION_FINISH_WIZARD);
-                        finishIntent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
-                        sendBroadcast(finishIntent);
-
+        public void onStatusChanged(int i, int i2, long j) {
+            if (StorageWizardMigrateProgress.this.mMoveId == i) {
+                StorageWizardMigrateProgress storageWizardMigrateProgress = StorageWizardMigrateProgress.this;
+                if (PackageManager.isMoveStatusFinished(i2)) {
+                    Log.d("StorageSettings", "Finished with status " + i2);
+                    if (i2 != -100) {
+                        Toast.makeText(storageWizardMigrateProgress, StorageWizardMigrateProgress.this.getString(C0017R$string.insufficient_storage), 1).show();
+                    } else if (StorageWizardMigrateProgress.this.mDisk != null) {
+                        Intent intent = new Intent("com.android.systemui.action.FINISH_WIZARD");
+                        intent.addFlags(1073741824);
+                        StorageWizardMigrateProgress.this.sendBroadcast(intent);
                         if (!StorageWizardMigrateProgress.this.isFinishing()) {
-                            final Intent intent = new Intent(context, StorageWizardReady.class);
-                            intent.putExtra(DiskInfo.EXTRA_DISK_ID, mDisk.getId());
-                            startActivity(intent);
+                            Intent intent2 = new Intent(storageWizardMigrateProgress, StorageWizardReady.class);
+                            intent2.putExtra("android.os.storage.extra.DISK_ID", StorageWizardMigrateProgress.this.mDisk.getId());
+                            StorageWizardMigrateProgress.this.startActivity(intent2);
                         }
                     }
-                } else {
-                    Toast.makeText(context, getString(R.string.insufficient_storage),
-                            Toast.LENGTH_LONG).show();
+                    StorageWizardMigrateProgress.this.finishAffinity();
+                    return;
                 }
-                finishAffinity();
-
-            } else {
-                setCurrentProgress(status);
+                StorageWizardMigrateProgress.this.setCurrentProgress(i2);
             }
         }
     };
+    private int mMoveId;
+
+    /* access modifiers changed from: protected */
+    @Override // androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, com.android.settings.deviceinfo.StorageWizardBase, com.oneplus.settings.BaseAppCompatActivity
+    public void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        if (this.mVolume == null) {
+            finish();
+            return;
+        }
+        setContentView(C0012R$layout.storage_wizard_progress);
+        this.mMoveId = getIntent().getIntExtra("android.content.pm.extra.MOVE_ID", -1);
+        setIcon(C0008R$drawable.ic_swap_horiz);
+        setHeaderText(C0017R$string.storage_wizard_migrate_progress_v2_title, new CharSequence[0]);
+        setAuxChecklist();
+        setBackButtonVisibility(4);
+        setNextButtonVisibility(4);
+        getPackageManager().registerMoveCallback(this.mCallback, new Handler());
+        this.mCallback.onStatusChanged(this.mMoveId, getPackageManager().getMoveStatus(this.mMoveId), -1);
+    }
 }
